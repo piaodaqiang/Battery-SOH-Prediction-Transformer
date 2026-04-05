@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 from sklearn.preprocessing import MinMaxScaler
+import joblib # 用于保存归一化模型
 
 
 def load_all_batteries(data_dir):
@@ -35,9 +36,6 @@ def load_all_batteries(data_dir):
     # 此时所有元素形状都是 (400, 3)，可以安全转换了
     return np.array(all_features), np.array(all_labels)
 
-# 4. 执行归一化并保存
-# ... 使用 MinMaxScaler ...
-
 if __name__ == "__main__":
     # 1. 确定数据文件夹路径 (根据你的项目结构)
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -54,3 +52,24 @@ if __name__ == "__main__":
     print(f"特征张量形状: {features.shape}")
     print(f"标签张量形状: {labels.shape}")
     print("前5个标签示例:", labels[:5])
+
+    # 1. 初始化归一化器
+    scaler = MinMaxScaler(feature_range=(0, 1))
+
+    # 2. 变换形状以适配归一化器: (3, 400, 3) -> (3*400, 3)
+    N, T, D = features.shape
+    features_reshaped = features.reshape(-1, D)
+
+    # 3. 执行归一化
+    features_scaled = scaler.fit_transform(features_reshaped)
+
+    # 4. 还原形状: (1200, 3) -> (3, 400, 3)
+    features_final = features_scaled.reshape(N, T, D)
+
+    # 5. 保存归一化模型（非常重要！预测时要用同样的参数）
+    joblib.dump(scaler, os.path.join(current_dir, '..', 'scaler.pkl'))
+
+    print("--- 归一化验证 ---")
+    print(f"归一化后的最大值: {features_final.max()}")
+    print(f"归一化后的最小值: {features_final.min()}")
+    print("归一化模型已保存为 scaler.pkl")
