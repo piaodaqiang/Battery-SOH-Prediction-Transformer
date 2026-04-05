@@ -8,32 +8,26 @@ import joblib # 用于保存归一化模型
 def load_all_batteries(data_dir):
     all_features = []
     all_labels = []
-
-    # 定义统一的序列长度（根据你数据集的最小行数调整，先设为400确保安全）
     target_length = 400
 
     files = [f for f in os.listdir(data_dir) if f.endswith('.csv')]
 
     for file in files:
-        file_path = os.path.join(data_dir, file)
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(os.path.join(data_dir, file))
 
-        # 提取特征
+        # 1. 提取特征
         feature = df[['Voltage_measured', 'Current_measured', 'Temperature_measured']].values
 
-        # --- 核心修复：对齐长度 ---
         if len(feature) >= target_length:
-            # 如果够长，截取前 target_length 个点
             feature = feature[:target_length, :]
             all_features.append(feature)
 
-            # 临时标签 (等我们写完安时积分再替换真实的)
-            all_labels.append(0.95)
-        else:
-            # 如果该文件太短，直接跳过或者报错提醒
-            print(f"警告: 文件 {file} 长度不足 {target_length}, 已跳过")
+            # 2. 计算真实 SOH：使用 Capacity 列的平均值（或最大值）
+            # NASA数据集中，Capacity代表该次循环的总容量，额定容量通常为 2.0
+            current_capacity = df['Capacity'].iloc[0]
+            soh = current_capacity / 2.0
+            all_labels.append(soh)
 
-    # 此时所有元素形状都是 (400, 3)，可以安全转换了
     return np.array(all_features), np.array(all_labels)
 
 if __name__ == "__main__":
