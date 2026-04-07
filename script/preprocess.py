@@ -10,44 +10,40 @@ def load_all_batteries(data_dir):
     all_labels = []
     target_length = 400
 
-    # 预设标签映射（针对 NASA B0005/6/7 数据集的典型值）
-    # 如果 CSV 里没标签，程序会根据文件名来这里找
-    CAPACITY_MAP = {
-        "00005.csv": 1.856,
-        "00006.csv": 2.035,
-        "00007.csv": 1.891
-    }
+    # 1. 加载 metadata.csv
+    metadata_path = os.path.join(os.path.dirname(data_dir), 'metadata.csv')
+    meta_df = pd.read_csv(metadata_path)
+    meta_df.set_index('filename', inplace=True)
 
     files = [f for f in os.listdir(data_dir) if f.endswith('.csv')]
-    print(f"正在处理 {len(files)} 个文件...")
+    print(f"正在匹配 metadata 并处理 {len(files)} 个文件...")
 
     for file in files:
-        file_path = os.path.join(data_dir, file)
-        df = pd.read_csv(file_path)
-
-        # 1. 提取特征 (确保列名与你 check_columns.py 打印的一致)
         try:
-            feature = df[['Voltage_measured', 'Current_measured', 'Temperature_measured']].values
-        except KeyError:
-            print(f"⚠️ 跳过文件 {file}: 缺少必要的特征列")
+            # --- 核心修复部分 ---
+            raw_capacity = meta_df.loc[file, 'Capacity']
+
+            # 强制转换为数字，如果转换失败则设为 NaN
+            current_capacity = pd.to_numeric(raw_capacity, errors='coerce')
+
+            # 检查：如果是空的或者是无效数据，直接跳过
+            if pd.isna(current_capacity) or current_capacity <= 0:
+                continue
+
+        except (KeyError, TypeError):
             continue
 
-        if len(feature) >= target_length:
-            # 统一截取长度
-            feature = feature[:target_length, :]
-            all_features.append(feature)
+        # 3. 读取特征数据逻辑保持不变
+        df = pd.read_csv(os.path.join(data_dir, file))
+        required_cols = ['Voltage_measured', 'Current_measured', 'Temperature_measured']
 
-            # 2. 核心修复：安全提取 SOH 标签
-            if 'Capacity' in df.columns:
-                # 如果 CSV 里有这一列，直接读
-                current_capacity = df['Capacity'].iloc[0]
-            else:
-                # 如果没有，从映射表里找，找不到就默认给 1.8
-                current_capacity = CAPACITY_MAP.get(file, 1.8)
+        if all(col in df.columns for col in required_cols):
+            feature = df[required_cols].values
+            if len(feature) >= target_length:
+                all_features.append(feature[:target_length, :])
+                all_labels.append(float(current_capacity) / 2.0)  # 确保是 float 计算
 
-            soh = current_capacity / 2.0  # 假设额定容量为 2.0
-            all_labels.append(soh)
-
+    print(f"✅ 匹配完成！成功提取出 {len(all_labels)} 个高质量样本。")
     return np.array(all_features), np.array(all_labels)
 
 

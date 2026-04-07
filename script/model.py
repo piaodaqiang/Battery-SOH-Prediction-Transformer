@@ -66,8 +66,9 @@ class BatterySOHTransformer(nn.Module):
 
         # 5. 输出预测值: (B, 1) -> (B)
         x = self.regressor(x)
-        return x.squeeze(-1)
+        x = x.squeeze(-1)
 
+        return x + 0.8
 
 # --- 检查代码 (Verification Logic) ---
 if __name__ == "__main__":

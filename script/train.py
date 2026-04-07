@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import os
+from torch.optim.lr_scheduler import StepLR
 
 # 导入你昨天写的模块
 from preprocess import load_all_batteries
@@ -19,17 +20,21 @@ def train_model():
     print("正在加载数据...")
     features, labels = load_all_batteries(data_dir)
 
+    labels = labels - 0.8
+
     # 实例化 Dataset 和 DataLoader
     dataset = BatteryDataset(features, labels)
-    train_loader = DataLoader(dataset, batch_size=2, shuffle=True)  # 暂时用小batch测试
+    train_loader = DataLoader(dataset, batch_size=16, shuffle=True)
 
     # 3. 初始化模型、损失函数和优化器
     model = BatterySOHTransformer()
     criterion = nn.MSELoss()  # 均方误差，最适合回归任务
     optimizer = optim.Adam(model.parameters(), lr=0.001)  # Adam优化器，学习率0.001
+    # 每隔 20 个 epoch，将学习率乘以 0.1
+    scheduler = StepLR(optimizer, step_size=50, gamma=0.1)
 
     # 4. 开启训练循环
-    epochs = 50  # 初始练50遍试试
+    epochs = 200  # 训练200遍
     print(f"开始训练，共计 {epochs} 个 Epoch...")
 
     model.train()  # 切换到训练模式
@@ -47,6 +52,10 @@ def train_model():
 
             # 反向传播与权重更新
             loss.backward()
+
+            # 梯度裁剪 (防止模型 “炸掉” )
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
             optimizer.step()
 
             running_loss += loss.item()
@@ -54,6 +63,8 @@ def train_model():
         # 每 10 个 epoch 打印一次进度
         if (epoch + 1) % 10 == 0:
             print(f"Epoch [{epoch + 1}/{epochs}], Loss: {running_loss / len(train_loader):.6f}")
+
+        scheduler.step()
 
     # 5. 保存训练好的模型权重
     model_path = os.path.join(current_dir, '..', 'battery_transformer.pth')
