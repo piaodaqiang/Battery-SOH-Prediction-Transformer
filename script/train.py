@@ -26,8 +26,13 @@ def train_model():
     dataset = BatteryDataset(features, labels)
     train_loader = DataLoader(dataset, batch_size=16, shuffle=True)
 
+    # 检测并定义设备
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"当前使用的设备: {device}")
+
     # 3. 初始化模型、损失函数和优化器
-    model = BatterySOHTransformer()
+    model = BatterySOHTransformer().to(device) # 将模型推送到显卡
+
     criterion = nn.MSELoss()  # 均方误差，最适合回归任务
     optimizer = optim.Adam(model.parameters(), lr=0.001)  # Adam优化器，学习率0.001
     # 每隔 20 个 epoch，将学习率乘以 0.1
@@ -41,6 +46,10 @@ def train_model():
     for epoch in range(epochs):
         running_loss = 0.0
         for batch_features, batch_labels in train_loader:
+            # 将每一批次的数据推送到显卡
+            batch_features = batch_features.to(device)
+            batch_labels = batch_labels.to(device)
+
             # 梯度清零
             optimizer.zero_grad()
 
